@@ -49,10 +49,16 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/v1/models", s.withAPIKeyLogged(s.OpenAI.Models, "other"))
 	s.mux.HandleFunc("/v1/images/generations", s.withAPIKeyLogged(method("POST", s.OpenAI.ImagesGenerations), "image"))
 	// infinite-canvas OpenAI video: POST /v1/videos + GET /v1/videos/{id}
+	// Seedance models are rewritten by canvas to /contents/generations/tasks
 	// also keep POST /v1/videos/generations
 	s.mux.HandleFunc("/v1/videos", s.withAPIKeyLogged(s.OpenAI.Videos, "video"))
 	s.mux.HandleFunc("/v1/videos/", s.withAPIKeyLogged(s.OpenAI.Videos, "video"))
 	s.mux.HandleFunc("/v1/videos/generations", s.withAPIKeyLogged(method("POST", s.OpenAI.VideosGenerations), "video"))
+	s.mux.HandleFunc("/v1/contents/generations/tasks", s.withAPIKeyLogged(s.OpenAI.Videos, "video"))
+	s.mux.HandleFunc("/v1/contents/generations/tasks/", s.withAPIKeyLogged(s.OpenAI.Videos, "video"))
+	// without /v1 prefix (if baseUrl already ends with /v1 stripped incorrectly)
+	s.mux.HandleFunc("/contents/generations/tasks", s.withAPIKeyLogged(s.OpenAI.Videos, "video"))
+	s.mux.HandleFunc("/contents/generations/tasks/", s.withAPIKeyLogged(s.OpenAI.Videos, "video"))
 	s.mux.HandleFunc("/v1/generate", s.withAPIKeyLogged(method("POST", s.OpenAI.Generate), "auto"))
 	s.mux.HandleFunc("/v1/files", s.withAPIKeyLogged(method("POST", s.OpenAI.FilesUpload), "file"))
 	s.mux.HandleFunc("/v1/jobs/", s.withAPIKeyLogged(s.OpenAI.JobGet, "job"))

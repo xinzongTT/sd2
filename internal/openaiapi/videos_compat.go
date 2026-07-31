@@ -16,8 +16,34 @@ import (
 //
 //	POST /v1/videos          create task (multipart FormData or JSON)
 //	GET  /v1/videos/{id}     poll task
+//
+// Also Ark/Seedance rewrite used by infinite-canvas when model contains "seedance":
+//
+//	POST /v1/contents/generations/tasks
+//	GET  /v1/contents/generations/tasks/{id}
 func (h *Handler) Videos(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/v1/videos")
+	path := r.URL.Path
+	// normalize aliases
+	if strings.HasPrefix(path, "/v1/contents/generations/tasks") {
+		rest := strings.TrimPrefix(path, "/v1/contents/generations/tasks")
+		rest = strings.Trim(rest, "/")
+		switch r.Method {
+		case http.MethodPost:
+			if rest == "" {
+				h.videosCreate(w, r)
+				return
+			}
+		case http.MethodGet:
+			if rest != "" {
+				h.videosGet(w, r, rest)
+				return
+			}
+		}
+		h.writeErr(w, 405, "method not allowed", "invalid_request_error", "method_not_allowed")
+		return
+	}
+
+	path = strings.TrimPrefix(path, "/v1/videos")
 	path = strings.Trim(path, "/")
 
 	switch r.Method {
