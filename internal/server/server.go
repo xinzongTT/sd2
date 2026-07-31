@@ -48,6 +48,10 @@ func (s *Server) routes() {
 	// OpenAI compatible + canvas (API key + request log)
 	s.mux.HandleFunc("/v1/models", s.withAPIKeyLogged(s.OpenAI.Models, "other"))
 	s.mux.HandleFunc("/v1/images/generations", s.withAPIKeyLogged(method("POST", s.OpenAI.ImagesGenerations), "image"))
+	// infinite-canvas OpenAI video: POST /v1/videos + GET /v1/videos/{id}
+	// also keep POST /v1/videos/generations
+	s.mux.HandleFunc("/v1/videos", s.withAPIKeyLogged(s.OpenAI.Videos, "video"))
+	s.mux.HandleFunc("/v1/videos/", s.withAPIKeyLogged(s.OpenAI.Videos, "video"))
 	s.mux.HandleFunc("/v1/videos/generations", s.withAPIKeyLogged(method("POST", s.OpenAI.VideosGenerations), "video"))
 	s.mux.HandleFunc("/v1/generate", s.withAPIKeyLogged(method("POST", s.OpenAI.Generate), "auto"))
 	s.mux.HandleFunc("/v1/files", s.withAPIKeyLogged(method("POST", s.OpenAI.FilesUpload), "file"))
