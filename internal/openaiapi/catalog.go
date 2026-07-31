@@ -1,0 +1,47 @@
+package openaiapi
+
+// FallbackCatalog is used when upstream CLI model list fails (e.g. expired token).
+// IDs match higgsfield CLI job_type values so generation still works once auth is valid.
+var FallbackCatalog = []Model{
+	// image
+	{ID: "text2image_soul_v2", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "soul_cinematic", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "soul_location", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "soul_cast", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "nano_banana", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "nano_banana_flash", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "nano_banana_pro", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "nano_banana_2_lite", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "gpt_image_2", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "openai_hazel", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "grok_image", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "flux_2", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "flux_kontext", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "seedream_v4_5", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "seedream_v5_lite", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "seedream_v5_pro", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "image_auto", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "kling_omni_image", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "recraft_v4_1", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "z_image", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "outpaint", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "image_background_remover", Object: "model", OwnedBy: "higgsfield"},
+	// video
+	{ID: "seedance_2_0", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "seedance_2_0_mini", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "seedance1_5", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "kling2_6", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "kling3_0", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "kling3_0_turbo", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "veo3", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "veo3_1", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "veo3_1_lite", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "wan2_6", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "wan2_7", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "gemini_omni", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "grok_video", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "grok_video_v15", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "minimax_hailuo", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "cinematic_studio_3_0", Object: "model", OwnedBy: "higgsfield"},
+	{ID: "cinematic_studio_video_3_5", Object: "model", OwnedBy: "higgsfield"},
+}

@@ -78,11 +78,13 @@ func (h *Handler) Models(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	if len(models) == 0 {
-		models = []Model{
-			{ID: h.Cfg.DefaultImageModel, Object: "model", OwnedBy: "higgsfield"},
-			{ID: h.Cfg.DefaultVideoModel, Object: "model", OwnedBy: "higgsfield"},
+	// Always merge fallback catalog so canvas still sees full list when CLI auth fails.
+	for _, m := range FallbackCatalog {
+		if m.ID == "" || seen[m.ID] {
+			continue
 		}
+		seen[m.ID] = true
+		models = append(models, m)
 	}
 	// virtual models (e.g. seedance_2_0_fast => seedance_2_0 + mode=fast)
 	for _, vid := range h.Cfg.VirtualModels() {
@@ -92,11 +94,7 @@ func (h *Handler) Models(w http.ResponseWriter, r *http.Request) {
 		seen[vid] = true
 		models = append(models, Model{ID: vid, Object: "model", OwnedBy: "higgsfield-proxy"})
 	}
-	for alias, target := range h.Cfg.Aliases {
-		if !seen[alias] {
-			models = append(models, Model{ID: alias + "->" + target, Object: "model", OwnedBy: "higgsfield-alias"})
-		}
-	}
+	// Do not expose alias strings like "soul->xxx" to canvas model pickers.
 	h.writeJSON(w, 200, ModelList{Object: "list", Data: models})
 }
 
