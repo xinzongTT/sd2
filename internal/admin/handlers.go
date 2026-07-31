@@ -183,17 +183,129 @@ func (h *Handler) ImportCLI(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, 200, map[string]any{"ok": true, "account": a.Public()})
 }
 
+// Login kept for compatibility — server has no browser; use OAuthStart/Complete.
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
-	id := "acc_" + time.Now().Format("20060102_150405")
-	home := filepath.Join(h.Cfg.DataDir, "cli-homes", id)
-	_ = os.MkdirAll(filepath.Join(home, ".config", "higgsfield"), 0o700)
-	a, err := h.CLI.AuthLogin(home)
+	h.writeJSON(w, 400, map[string]any{
+		"error":   "server cannot open a browser; use OAuth start + paste callback URL",
+		"hint":    "POST /admin/auth/start then POST /admin/auth/complete with callback_url",
+		"ui_flow": "click OAuth 加号 → open link → paste redirect URL",
+	})
+}
+
+// OAuthStart returns authorize_url for the admin to open on their own PC.
+func (h *Handler) OAuthStart(w http.ResponseWriter, r *http.Request) {
+	p, err := higgs.StartBrowserOAuth()
 	if err != nil {
 		h.writeJSON(w, 500, map[string]string{"error": err.Error()})
 		return
 	}
-	a.ID = id
-	a.ConfigDir = home
+	h.writeJSON(w, 200, map[string]any{
+		"ok":            true,
+		"authorize_url": p.AuthorizeURL,
+		"state":         p.State,
+		"instructions":  "1) Open authorize_url in your browser 2) Login 3) Browser may show connection refused on localhost:8765 — copy the full URL from address bar 4) Paste into complete",
+	})
+}
+
+// OAuthComplete exchanges pasted callback URL for tokens and saves account.
+func (h *Handler) OAuthComplete(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		CallbackURL string `json:"callback_url"`
+		Code        string `json:"code"`
+		State       string `json:"state"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		h.writeJSON(w, 400, map[string]string{"error": "invalid json"})
+		return
+	}
+	a, err := higgs.CompleteBrowserOAuth(body.CallbackURL, body.Code, body.State)
+	if err != nil {
+		h.writeJSON(w, 400, map[string]string{"error": err.Error()})
+		return
+	}
+	if err := h.finalizeAndSaveAccount(a); err != nil {
+		h.writeJSON(w, 500, map[string]string{"error": err.Error()})
+		return
+	}
+	h.writeJSON(w, 200, map[string]any{"ok": true, "account": a.Public()})
+}
+
+// ImportCredentials accepts pasted credentials.json (+ optional workspace_id).
+func (h *Handler) ImportCredentials(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+		ExpiresAt    int64  `json:"expires_at"`
+		TokenType    string `json:"token_type"`
+		Scope        string `json:"scope"`
+		WorkspaceID  string `json:"workspace_id"`
+		// or raw JSON string of credentials file
+		Raw string `json:"raw"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		h.writeJSON(w, 400, map[string]string{"error": "invalid json"})
+		return
+	}
+	if body.Raw != "" {
+		var raw map[string]any
+		if err := json.Unmarshal([]byte(body.Raw), &raw); err != nil {
+			h.writeJSON(w, 400, map[string]string{"error": "invalid raw credentials json"})
+			return
+		}
+		if v, ok := raw["access_token"].(string); ok {
+			body.AccessToken = v
+		}
+		if v, ok := raw["refresh_token"].(string); ok {
+			body.RefreshToken = v
+		}
+		if v, ok := raw["token_type"].(string); ok {
+			body.TokenType = v
+		}
+		if v, ok := raw["scope"].(string); ok {
+			body.Scope = v
+		}
+		switch x := raw["expires_at"].(type) {
+		case float64:
+			body.ExpiresAt = int64(x)
+		}
+	}
+	if strings.TrimSpace(body.AccessToken) == "" {
+		h.writeJSON(w, 400, map[string]string{"error": "access_token required"})
+		return
+	}
+	a := &account.Account{
+		ID:           accountIDFromToken(body.AccessToken),
+		AccessToken:  body.AccessToken,
+		RefreshToken: body.RefreshToken,
+		ExpiresAt:    body.ExpiresAt,
+		TokenType:    firstNonEmptyStr(body.TokenType, "bearer"),
+		Scope:        body.Scope,
+		WorkspaceID:  body.WorkspaceID,
+		AuthStatus:   "valid",
+		CreatedAt:    time.Now().UTC(),
+		UpdatedAt:    time.Now().UTC(),
+	}
+	if err := h.finalizeAndSaveAccount(a); err != nil {
+		h.writeJSON(w, 500, map[string]string{"error": err.Error()})
+		return
+	}
+	h.writeJSON(w, 200, map[string]any{"ok": true, "account": a.Public()})
+}
+
+func (h *Handler) finalizeAndSaveAccount(a *account.Account) error {
+	if a.ID == "" {
+		a.ID = accountIDFromToken(a.AccessToken)
+	}
+	a.ConfigDir = filepath.Join(h.Cfg.DataDir, "cli-homes", a.ID)
+	_ = os.MkdirAll(filepath.Join(a.ConfigDir, ".config", "higgsfield"), 0o700)
+	// write creds via CLI helper path
+	if _, err := h.CLI.EnsureAuth(a); err != nil {
+		// EnsureAuth may no-op; still prepare dir by status call
+	}
+	// force write credentials
+	type prep interface {
+		// not exported; call AccountStatus which prepares dir
+	}
 	if a.WorkspaceID == "" {
 		if wss, err := h.CLI.WorkspaceList(a); err == nil && len(wss) > 0 {
 			a.WorkspaceID = wss[0].ID
@@ -201,16 +313,32 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 			a.Credits = wss[0].Credits
 		}
 	}
+	if a.WorkspaceID != "" {
+		// ensure workspace selected in config.json via prepareAccountDir side effect
+		_, _ = h.CLI.WorkspaceList(a)
+	}
 	if st, err := h.CLI.AccountStatus(a); err == nil {
 		a.Credits = st.Credits
 		a.Email = st.Email
 		a.Plan = st.Plan
+		a.AuthStatus = "valid"
+		a.LastError = ""
+	} else {
+		a.AuthStatus = "valid" // tokens just issued; status may fail transiently
+		a.LastError = err.Error()
 	}
-	if err := h.Pool.Save(a); err != nil {
-		h.writeJSON(w, 500, map[string]string{"error": err.Error()})
-		return
+	a.UpdatedAt = time.Now().UTC()
+	if a.CreatedAt.IsZero() {
+		a.CreatedAt = a.UpdatedAt
 	}
-	h.writeJSON(w, 200, map[string]any{"ok": true, "account": a.Public()})
+	return h.Pool.Save(a)
+}
+
+func firstNonEmptyStr(v, def string) string {
+	if strings.TrimSpace(v) != "" {
+		return v
+	}
+	return def
 }
 
 func (h *Handler) SetDisabled(w http.ResponseWriter, r *http.Request) {

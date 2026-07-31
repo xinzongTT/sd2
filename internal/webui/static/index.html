@@ -187,6 +187,23 @@
             <button class="btn" id="btnOAuth">OAuth 加号</button>
           </span>
         </h2>
+        <div id="oauthBox" style="display:none;margin-bottom:14px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--bg3)">
+          <div class="muted" style="margin-bottom:8px">服务器无法弹浏览器。请在本机打开链接登录，然后把地址栏里的 <b>localhost:8765/callback?...</b> 完整 URL 粘贴下方（页面打不开也没关系，复制地址即可）。</div>
+          <div class="field"><label>授权链接</label>
+            <div class="row">
+              <input id="oauthURL" readonly style="flex:1" />
+              <button class="btn secondary" type="button" id="btnOpenOAuth">打开</button>
+              <button class="btn secondary" type="button" id="btnCopyOAuth">复制</button>
+            </div>
+          </div>
+          <div class="field"><label>粘贴回调 URL</label>
+            <input id="oauthCallback" placeholder="http://localhost:8765/callback?code=...&state=..." />
+          </div>
+          <div class="row">
+            <button class="btn ok" type="button" id="btnOAuthComplete">完成登录</button>
+            <button class="btn secondary" type="button" id="btnOAuthCancel">取消</button>
+          </div>
+        </div>
         <table>
           <thead><tr><th>邮箱/ID</th><th>Plan</th><th>Credits</th><th>状态</th><th>操作</th></tr></thead>
           <tbody id="accountRows"><tr><td colspan="5" class="muted">加载中</td></tr></tbody>
@@ -399,9 +416,32 @@
       catch (e) { toast(e.message, true); }
     };
     $('btnOAuth').onclick = async () => {
-      if (!confirm('将打开浏览器 OAuth，页面会等待完成')) return;
-      try { await api('/admin/auth/login', { method: 'POST' }); toast('加号成功'); refreshAccounts(); refreshStatus(); }
-      catch (e) { toast(e.message, true); }
+      try {
+        const data = await api('/admin/auth/start', { method: 'POST' });
+        $('oauthBox').style.display = '';
+        $('oauthURL').value = data.authorize_url || '';
+        $('oauthCallback').value = '';
+        toast('已生成授权链接，请在本机浏览器打开');
+      } catch (e) { toast(e.message, true); }
+    };
+    $('btnOpenOAuth').onclick = () => {
+      const u = $('oauthURL').value;
+      if (u) window.open(u, '_blank', 'noopener');
+    };
+    $('btnCopyOAuth').onclick = async () => {
+      try { await navigator.clipboard.writeText($('oauthURL').value); toast('已复制链接'); }
+      catch { toast('复制失败', true); }
+    };
+    $('btnOAuthCancel').onclick = () => { $('oauthBox').style.display = 'none'; };
+    $('btnOAuthComplete').onclick = async () => {
+      const callback_url = $('oauthCallback').value.trim();
+      if (!callback_url) { toast('请粘贴回调 URL', true); return; }
+      try {
+        await api('/admin/auth/complete', { method: 'POST', body: { callback_url } });
+        toast('登录成功');
+        $('oauthBox').style.display = 'none';
+        refreshAccounts(); refreshStatus();
+      } catch (e) { toast(e.message, true); }
     };
 
     // generate
