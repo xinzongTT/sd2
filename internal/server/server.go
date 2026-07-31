@@ -137,9 +137,14 @@ func (s *Server) withAPIKeyLogged(next http.HandlerFunc, kind string) http.Handl
 		}
 
 		start := time.Now()
+		ct := r.Header.Get("Content-Type")
+		isMultipart := strings.Contains(strings.ToLower(ct), "multipart/")
 		var bodyBytes []byte
-		if r.Body != nil && r.Method == http.MethodPost {
-			bodyBytes, _ = io.ReadAll(io.LimitReader(r.Body, 2<<20))
+		// Never truncate multipart: canvas uploads ref images/videos can be tens of MB.
+		// Truncating caused: invalid multipart: unexpected EOF
+		if r.Body != nil && r.Method == http.MethodPost && !isMultipart {
+			// JSON bodies are small; cap at 8MB for logging/replay
+			bodyBytes, _ = io.ReadAll(io.LimitReader(r.Body, 8<<20))
 			r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 		}
 
@@ -149,7 +154,22 @@ func (s *Server) withAPIKeyLogged(next http.HandlerFunc, kind string) http.Handl
 		if s.Logs == nil {
 			return
 		}
-		model, prompt, reqSummary := parseBodySummary(bodyBytes)
+		model, prompt, reqSummary := "", "", ""
+		if isMultipart {
+			reqSummary = "multipart/form-data (body not buffered for logging)"
+			// try read model/prompt from form if handler already parsed
+			if r.MultipartForm != nil {
+				if v := r.FormValue("model"); v != "" {
+					model = v
+				}
+				if v := r.FormValue("prompt"); v != "" {
+					prompt = v
+				}
+				reqSummary = "multipart fields model=" + model
+			}
+		} else {
+			model, prompt, reqSummary = parseBodySummary(bodyBytes)
+		}
 		resultURL, jobID, errMsg := parseResponseSummary(rw.buf.Bytes())
 		if kind == "auto" {
 			if strings.Contains(strings.ToLower(model), "seedance") || strings.Contains(strings.ToLower(model), "video") {
