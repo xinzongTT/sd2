@@ -111,6 +111,32 @@ func (p *Pool) UpdateCredits(id string, credits float64, plan, email string) {
 	_ = p.store.Save(a)
 }
 
+// UpdateTokens persists refreshed OAuth tokens for an account.
+func (p *Pool) UpdateTokens(id, access, refresh string, expiresAt int64, tokenType, scope string) {
+	a, err := p.store.Get(id)
+	if err != nil {
+		return
+	}
+	if access != "" {
+		a.AccessToken = access
+	}
+	if refresh != "" {
+		a.RefreshToken = refresh
+	}
+	if expiresAt > 0 {
+		a.ExpiresAt = expiresAt
+	}
+	if tokenType != "" {
+		a.TokenType = tokenType
+	}
+	if scope != "" {
+		a.Scope = scope
+	}
+	a.LastError = ""
+	a.CooldownUntil = nil
+	_ = p.store.Save(a)
+}
+
 func (p *Pool) SetDisabled(id string, disabled bool) error {
 	a, err := p.store.Get(id)
 	if err != nil {

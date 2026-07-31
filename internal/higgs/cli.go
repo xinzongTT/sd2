@@ -58,7 +58,8 @@ func (c *CLI) bin() string {
 
 func (c *CLI) prepareAccountDir(a *account.Account) (string, error) {
 	dir := a.ConfigDir
-	if dir == "" {
+	// Windows path stored on Linux is unusable — always use dataDir/cli-homes/<id>
+	if dir == "" || strings.Contains(dir, "\\") || !filepath.IsAbs(dir) {
 		dir = filepath.Join(c.DataDir, "cli-homes", a.ID)
 	}
 	cfgDir := filepath.Join(dir, ".config", "higgsfield")
@@ -88,7 +89,44 @@ func (c *CLI) prepareAccountDir(a *account.Account) (string, error) {
 	return dir, nil
 }
 
+// EnsureAuth refreshes OAuth token if near expiry. Returns whether tokens changed.
+func (c *CLI) EnsureAuth(a *account.Account) (bool, error) {
+	if a == nil {
+		return false, fmt.Errorf("nil account")
+	}
+	if !NeedsRefresh(a) {
+		return false, nil
+	}
+	if err := RefreshAccount(a); err != nil {
+		return false, err
+	}
+	// rewrite credentials for CLI
+	if _, err := c.prepareAccountDir(a); err != nil {
+		return true, err
+	}
+	return true, nil
+}
+
 func (c *CLI) run(a *account.Account, args ...string) ([]byte, error) {
+	// proactive refresh
+	if _, err := c.EnsureAuth(a); err != nil && NeedsRefresh(a) {
+		// still try; may fail with auth error below
+	}
+	out, err := c.runOnce(a, args...)
+	if err == nil {
+		return out, nil
+	}
+	// on auth failure, force refresh once and retry
+	if isAuthError(err) && a.RefreshToken != "" {
+		if rerr := RefreshAccount(a); rerr == nil {
+			_, _ = c.prepareAccountDir(a)
+			return c.runOnce(a, args...)
+		}
+	}
+	return nil, err
+}
+
+func (c *CLI) runOnce(a *account.Account, args ...string) ([]byte, error) {
 	home, err := c.prepareAccountDir(a)
 	if err != nil {
 		return nil, err
@@ -98,7 +136,6 @@ func (c *CLI) run(a *account.Account, args ...string) ([]byte, error) {
 		"XDG_CONFIG_HOME="+filepath.Join(home, ".config"),
 		"HOME="+home,
 	)
-	// Keep USERPROFILE for Windows tools but prefer XDG for CLI
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

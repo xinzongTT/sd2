@@ -64,6 +64,30 @@ func main() {
 	adm := admin.New(cfg, pool, cli, keys, logs, sess)
 	srv := server.New(cfg, oai, adm, keys, logs, sess)
 
+	// background OAuth refresh for all accounts (every 10 minutes)
+	go func() {
+		t := time.NewTicker(10 * time.Minute)
+		defer t.Stop()
+		for {
+			accs, _ := pool.List()
+			for _, a := range accs {
+				if a.Disabled || a.RefreshToken == "" {
+					continue
+				}
+				cp := *a
+				changed, err := cli.EnsureAuth(&cp)
+				if err != nil {
+					continue
+				}
+				if changed {
+					pool.UpdateTokens(cp.ID, cp.AccessToken, cp.RefreshToken, cp.ExpiresAt, cp.TokenType, cp.Scope)
+					log.Printf("refreshed oauth token for account %s", cp.ID)
+				}
+			}
+			<-t.C
+		}
+	}()
+
 	addr := cfg.Addr()
 	fmt.Printf("higgsfield-proxy listening on http://%s\n", addr)
 	fmt.Printf("  ui:      http://%s/  (login password from admin_password)\n", addr)

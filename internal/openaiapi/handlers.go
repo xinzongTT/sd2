@@ -61,6 +61,12 @@ func (h *Handler) Models(w http.ResponseWriter, r *http.Request) {
 		if a.Disabled {
 			continue
 		}
+		// refresh token before listing live models
+		cp := *a
+		if changed, err := h.CLI.EnsureAuth(&cp); err == nil && changed {
+			h.Pool.UpdateTokens(cp.ID, cp.AccessToken, cp.RefreshToken, cp.ExpiresAt, cp.TokenType, cp.Scope)
+			a = &cp
+		}
 		for _, kind := range []string{"image", "video"} {
 			list, err := h.CLI.ListModels(a, kind)
 			if err != nil {
@@ -211,6 +217,29 @@ func (h *Handler) Generate(w http.ResponseWriter, r *http.Request) {
 	h.runGeneration(w, opts, wait, timeout, kind)
 }
 
+func (h *Handler) prepareAccount(acc *account.Account) {
+	if acc == nil {
+		return
+	}
+	changed, err := h.CLI.EnsureAuth(acc)
+	if err == nil && changed {
+		h.Pool.UpdateTokens(acc.ID, acc.AccessToken, acc.RefreshToken, acc.ExpiresAt, acc.TokenType, acc.Scope)
+	}
+	if st, err := h.CLI.AccountStatus(acc); err == nil {
+		h.Pool.UpdateCredits(acc.ID, st.Credits, st.Plan, st.Email)
+		acc.Credits = st.Credits
+	} else if higgs.IsAuthError(err) {
+		// force refresh + retry status once
+		if rerr := higgs.RefreshAccount(acc); rerr == nil {
+			h.Pool.UpdateTokens(acc.ID, acc.AccessToken, acc.RefreshToken, acc.ExpiresAt, acc.TokenType, acc.Scope)
+			if st2, err2 := h.CLI.AccountStatus(acc); err2 == nil {
+				h.Pool.UpdateCredits(acc.ID, st2.Credits, st2.Plan, st2.Email)
+				acc.Credits = st2.Credits
+			}
+		}
+	}
+}
+
 func (h *Handler) runGeneration(w http.ResponseWriter, opts higgs.CreateOpts, wait bool, timeout time.Duration, kind string) {
 	acc, err := h.Pool.Select()
 	if err != nil {
@@ -219,13 +248,12 @@ func (h *Handler) runGeneration(w http.ResponseWriter, opts higgs.CreateOpts, wa
 	}
 	defer h.Pool.Release(acc.ID)
 
-	if st, err := h.CLI.AccountStatus(acc); err == nil {
-		h.Pool.UpdateCredits(acc.ID, st.Credits, st.Plan, st.Email)
-		acc.Credits = st.Credits
-	}
+	h.prepareAccount(acc)
 
 	jobID, err := h.CLI.CreateOpts(acc, opts)
 	if err != nil {
+		// persist tokens if Create refreshed them
+		h.Pool.UpdateTokens(acc.ID, acc.AccessToken, acc.RefreshToken, acc.ExpiresAt, acc.TokenType, acc.Scope)
 		h.handleUpstreamError(acc.ID, err)
 		acc2, err2 := h.Pool.Select()
 		if err2 != nil {
@@ -234,13 +262,16 @@ func (h *Handler) runGeneration(w http.ResponseWriter, opts higgs.CreateOpts, wa
 		}
 		defer h.Pool.Release(acc2.ID)
 		acc = acc2
+		h.prepareAccount(acc)
 		jobID, err = h.CLI.CreateOpts(acc, opts)
 		if err != nil {
+			h.Pool.UpdateTokens(acc.ID, acc.AccessToken, acc.RefreshToken, acc.ExpiresAt, acc.TokenType, acc.Scope)
 			h.handleUpstreamError(acc.ID, err)
 			h.writeErr(w, 502, err.Error(), "server_error", "upstream_error")
 			return
 		}
 	}
+	h.Pool.UpdateTokens(acc.ID, acc.AccessToken, acc.RefreshToken, acc.ExpiresAt, acc.TokenType, acc.Scope)
 
 	h.jobMu.Lock()
 	h.jobs[jobID] = &localJob{ID: jobID, AccountID: acc.ID, Model: opts.JobType, Status: "queued", Created: time.Now()}
