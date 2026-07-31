@@ -149,3 +149,10 @@ func (p *Pool) SetDisabled(id string, disabled bool) error {
 	}
 	return p.store.Save(a)
 }
+
+func (p *Pool) Delete(id string) error {
+	p.mu.Lock()
+	delete(p.inflight, id)
+	p.mu.Unlock()
+	return p.store.Delete(id)
+}

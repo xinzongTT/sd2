@@ -349,18 +349,28 @@ func (h *Handler) SetDisabled(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id, action := parts[0], parts[1]
-	var disabled bool
 	switch action {
+	case "delete":
+		if err := h.Pool.Delete(id); err != nil {
+			h.writeJSON(w, 404, map[string]string{"error": err.Error()})
+			return
+		}
+		// best-effort remove cli home
+		_ = os.RemoveAll(filepath.Join(h.Cfg.DataDir, "cli-homes", id))
+		h.writeJSON(w, 200, map[string]any{"ok": true, "deleted": id})
+		return
 	case "disable":
-		disabled = true
+		if err := h.Pool.SetDisabled(id, true); err != nil {
+			h.writeJSON(w, 404, map[string]string{"error": err.Error()})
+			return
+		}
 	case "enable":
-		disabled = false
+		if err := h.Pool.SetDisabled(id, false); err != nil {
+			h.writeJSON(w, 404, map[string]string{"error": err.Error()})
+			return
+		}
 	default:
 		h.writeJSON(w, 404, map[string]string{"error": "not found"})
-		return
-	}
-	if err := h.Pool.SetDisabled(id, disabled); err != nil {
-		h.writeJSON(w, 404, map[string]string{"error": err.Error()})
 		return
 	}
 	a, _ := h.Pool.Get(id)

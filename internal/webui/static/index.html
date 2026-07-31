@@ -388,16 +388,17 @@
         }
         $('accountRows').innerHTML = list.map(a => {
           const st = accountStatusBadge(a);
-          const act = a.disabled
+          const toggle = a.disabled
             ? `<button class="btn secondary" style="padding:6px 10px;font-size:.75rem" data-a="enable" data-id="${a.id}">启用</button>`
-            : `<button class="btn danger" style="padding:6px 10px;font-size:.75rem" data-a="disable" data-id="${a.id}">禁用</button>`;
+            : `<button class="btn secondary" style="padding:6px 10px;font-size:.75rem" data-a="disable" data-id="${a.id}">禁用</button>`;
+          const del = `<button class="btn danger" style="padding:6px 10px;font-size:.75rem" data-a="delete" data-id="${a.id}">删除</button>`;
           const exp = a.expires_at ? `<div class="tiny">到期: ${escapeHtml(String(a.expires_at).replace('T',' ').replace('Z',''))}</div>` : '';
           const err = a.last_error ? `<div class="tiny" style="color:var(--bad);max-width:220px">${escapeHtml(String(a.last_error).slice(0,120))}</div>` : '';
           return `<tr>
             <td>${escapeHtml(a.email||a.id)}<div class="tiny">${escapeHtml(a.id)}</div>${exp}${err}</td>
             <td>${escapeHtml(a.plan||'-')}</td>
             <td><b>${Number(a.credits||0).toFixed(2)}</b></td>
-            <td>${st}</td><td>${act}</td></tr>`;
+            <td>${st}</td><td class="row">${toggle}${del}</td></tr>`;
         }).join('');
       } catch (e) {
         $('accountRows').innerHTML = `<tr><td colspan="5" class="muted">${escapeHtml(e.message)}</td></tr>`;
@@ -406,8 +407,11 @@
     $('accountRows').onclick = async (e) => {
       const btn = e.target.closest('[data-a]');
       if (!btn) return;
+      const act = btn.dataset.a;
+      if (act === 'delete' && !confirm('确定删除该账号？凭证与本地缓存将一并移除。')) return;
       try {
-        await api(`/admin/accounts/${btn.dataset.id}/${btn.dataset.a}`, { method: 'POST' });
+        await api(`/admin/accounts/${btn.dataset.id}/${act}`, { method: 'POST' });
+        toast(act === 'delete' ? '已删除' : '已更新');
         refreshAccounts(); refreshStatus();
       } catch (err) { toast(err.message, true); }
     };
