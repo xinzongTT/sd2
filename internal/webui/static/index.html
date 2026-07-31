@@ -33,11 +33,24 @@
     @media(max-width:700px){.stats{grid-template-columns:repeat(2,1fr)}}
     .stat{background:var(--bg3);border:1px solid var(--line);border-radius:12px;padding:12px}
     .stat .n{font-size:1.35rem;font-weight:700}.stat .l{color:var(--muted);font-size:.75rem;margin-top:2px}
-    table{width:100%;border-collapse:collapse;font-size:.86rem}
-    th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
-    th{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.03em}
-    .badge{display:inline-flex;border-radius:999px;padding:2px 8px;font-size:.72rem;font-weight:600;border:1px solid var(--line);background:var(--bg3)}
-    .badge.ok{color:var(--ok);border-color:#34d39944}.badge.bad{color:var(--bad);border-color:#f8717144}
+    table{width:100%;border-collapse:collapse;font-size:.86rem;table-layout:fixed}
+    th,td{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+    th{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.03em;font-weight:600;white-space:nowrap}
+    td.cell-stack{vertical-align:middle}
+    td.cell-stack .tiny{margin-top:2px}
+    td.cell-actions{white-space:nowrap}
+    td.cell-actions .row{flex-wrap:nowrap;gap:6px}
+    .table-wrap{overflow:auto;width:100%}
+    .badge{display:inline-flex;align-items:center;border-radius:999px;padding:2px 8px;font-size:.72rem;font-weight:600;border:1px solid var(--line);background:var(--bg3);line-height:1.4}
+    .badge.ok{color:var(--ok);border-color:#34d39944}.badge.bad{color:var(--bad);border-color:#f8717144}.badge.warn{color:var(--warn);border-color:#fbbf2444}
+    .docs h3{margin:18px 0 8px;font-size:.95rem}
+    .docs h3:first-child{margin-top:0}
+    .docs p,.docs li{color:var(--muted);font-size:.88rem;line-height:1.55}
+    .docs code,.docs pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.8rem}
+    .docs code{background:#0a0e16;border:1px solid var(--line);padding:1px 6px;border-radius:6px;color:#e2e8f0}
+    .docs pre{background:#0a0e16;border:1px solid var(--line);padding:12px 14px;border-radius:10px;overflow:auto;color:#e2e8f0;margin:8px 0 14px}
+    .docs table{table-layout:auto;margin:8px 0 14px}
+    .docs th,.docs td{font-size:.82rem}
     label{display:block;font-size:.78rem;color:var(--muted);margin:0 0 6px}
     .field{margin-bottom:12px}
     select,textarea,.field input,input[type=text],input[type=password],input[type=file]{width:100%;background:var(--bg3);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:10px 12px;outline:none;font:inherit}
@@ -76,6 +89,7 @@
       <button data-panel="logs">调用日志</button>
       <button data-panel="gen">生成台</button>
       <button data-panel="accounts">账号池</button>
+      <button data-panel="docs">调用文档</button>
     </div>
 
     <!-- DASH -->
@@ -104,8 +118,11 @@
           </span>
         </h2>
         <p class="muted">画布渠道填这里生成的 Key。配置文件里的 key 启动时会自动导入一次。</p>
-        <div style="overflow:auto">
+        <div class="table-wrap">
           <table>
+            <colgroup>
+              <col style="width:16%"><col style="width:42%"><col style="width:10%"><col style="width:16%"><col style="width:16%">
+            </colgroup>
             <thead><tr><th>名称</th><th>Key</th><th>状态</th><th>最近使用</th><th>操作</th></tr></thead>
             <tbody id="keyRows"><tr><td colspan="5" class="muted">加载中...</td></tr></tbody>
           </table>
@@ -124,8 +141,12 @@
             <button class="btn secondary" id="btnLogRefresh">刷新</button>
           </span>
         </h2>
-        <div style="overflow:auto;max-height:70vh">
+        <div class="table-wrap" style="max-height:70vh">
           <table>
+            <colgroup>
+              <col style="width:12%"><col style="width:10%"><col style="width:12%"><col style="width:12%">
+              <col style="width:7%"><col style="width:7%"><col style="width:22%"><col style="width:18%">
+            </colgroup>
             <thead>
               <tr>
                 <th>时间</th><th>密钥</th><th>模型</th><th>端点</th><th>状态</th>
@@ -204,10 +225,90 @@
             <button class="btn secondary" type="button" id="btnOAuthCancel">取消</button>
           </div>
         </div>
+        <div class="table-wrap">
+          <table>
+            <colgroup>
+              <col style="width:34%"><col style="width:12%"><col style="width:12%"><col style="width:14%"><col style="width:28%">
+            </colgroup>
+            <thead><tr><th>邮箱/ID</th><th>Plan</th><th>Credits</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody id="accountRows"><tr><td colspan="5" class="muted">加载中</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- DOCS -->
+    <section class="panel" id="panel-docs">
+      <div class="card docs">
+        <h2>调用方式文档</h2>
+        <h3>1. 画布 / OpenAI 渠道配置</h3>
         <table>
-          <thead><tr><th>邮箱/ID</th><th>Plan</th><th>Credits</th><th>状态</th><th>操作</th></tr></thead>
-          <tbody id="accountRows"><tr><td colspan="5" class="muted">加载中</td></tr></tbody>
+          <thead><tr><th>字段</th><th>填写</th></tr></thead>
+          <tbody>
+            <tr><td>协议</td><td><code>OpenAI</code></td></tr>
+            <tr><td>接口地址</td><td><code id="docBase">https://sd2.3377777.xyz/v1</code>（本页会自动填当前域名）</td></tr>
+            <tr><td>API Key</td><td>在「API 密钥」页生成，如 <code>sk-xxx</code></td></tr>
+            <tr><td>超时</td><td>建议 <code>600</code> 秒（视频）</td></tr>
+            <tr><td>模型</td><td>如 <code>gpt_image_2</code>、<code>seedance_2_0_fast</code>、<code>text2image_soul_v2</code></td></tr>
+          </tbody>
         </table>
+
+        <h3>2. 鉴权</h3>
+        <pre>Authorization: Bearer sk-你的密钥
+# 或
+X-API-Key: sk-你的密钥</pre>
+
+        <h3>3. 主要接口</h3>
+        <table>
+          <thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>GET</td><td><code>/v1/models</code></td><td>模型列表</td></tr>
+            <tr><td>POST</td><td><code>/v1/images/generations</code></td><td>文生图 / 图生图</td></tr>
+            <tr><td>POST</td><td><code>/v1/videos/generations</code></td><td>文生视频 / 图生视频</td></tr>
+            <tr><td>POST</td><td><code>/v1/generate</code></td><td>统一生成（画布自定义节点）</td></tr>
+            <tr><td>POST</td><td><code>/v1/files</code></td><td>上传参考媒体 multipart <code>file</code></td></tr>
+            <tr><td>GET</td><td><code>/v1/jobs/{id}</code></td><td>查询任务状态</td></tr>
+          </tbody>
+        </table>
+
+        <h3>4. 文生图示例</h3>
+        <pre id="docImgCurl">curl -X POST https://HOST/v1/images/generations \
+  -H "Authorization: Bearer sk-xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt_image_2","prompt":"a red apple","size":"1024x1024","quality":"high"}'</pre>
+
+        <h3>5. 图生视频示例（Seedance Fast）</h3>
+        <pre id="docVidCurl"># 1) 上传参考图
+curl -X POST https://HOST/v1/files \
+  -H "Authorization: Bearer sk-xxx" \
+  -F file=@./ref.png
+
+# 2) 生成（start_image 用上传返回的 path）
+curl -X POST https://HOST/v1/videos/generations \
+  -H "Authorization: Bearer sk-xxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model":"seedance_2_0_fast",
+    "prompt":"gentle camera push-in",
+    "size":"1280x720",
+    "seconds":5,
+    "start_image":"上传返回的path",
+    "wait":true
+  }'</pre>
+
+        <h3>6. 媒体字段</h3>
+        <p>支持：<code>image</code> / <code>image_references</code>、<code>start_image</code> / <code>end_image</code>、<code>video</code> / <code>video_references</code>、<code>audio</code> / <code>audio_references</code>。<br>
+        每个值可以是：本地 path、上传 id、http(s) URL、data URL、UUID。</p>
+
+        <h3>7. 异步任务</h3>
+        <p><code>wait:false</code> 时立即返回 <code>id</code>，再用 <code>GET /v1/jobs/{id}</code> 轮询，直到 <code>status=completed</code>，取 <code>url</code>。</p>
+
+        <h3>8. 注意</h3>
+        <ul>
+          <li>本服务是 <b>图片/视频</b> 接口，不是 chat/completions 文本模型。</li>
+          <li>账号 Token 过期需在「账号池」OAuth 重新登录；失效账号请删除后重加。</li>
+          <li>管理台密码与 API Key 请部署后立即修改。</li>
+        </ul>
       </div>
     </section>
   </div>
@@ -395,10 +496,11 @@
           const exp = a.expires_at ? `<div class="tiny">到期: ${escapeHtml(String(a.expires_at).replace('T',' ').replace('Z',''))}</div>` : '';
           const err = a.last_error ? `<div class="tiny" style="color:var(--bad);max-width:220px">${escapeHtml(String(a.last_error).slice(0,120))}</div>` : '';
           return `<tr>
-            <td>${escapeHtml(a.email||a.id)}<div class="tiny">${escapeHtml(a.id)}</div>${exp}${err}</td>
+            <td class="cell-stack">${escapeHtml(a.email||a.id)}<div class="tiny">${escapeHtml(a.id)}</div>${exp}${err}</td>
             <td>${escapeHtml(a.plan||'-')}</td>
             <td><b>${Number(a.credits||0).toFixed(2)}</b></td>
-            <td>${st}</td><td class="row">${toggle}${del}</td></tr>`;
+            <td>${st}</td>
+            <td class="cell-actions"><div class="row">${toggle}${del}</div></td></tr>`;
         }).join('');
       } catch (e) {
         $('accountRows').innerHTML = `<tr><td colspan="5" class="muted">${escapeHtml(e.message)}</td></tr>`;
@@ -570,9 +672,20 @@
       return `<span class="badge ${cls}">${text}</span>`;
     }
 
+    function fillDocsHost() {
+      const base = location.origin + '/v1';
+      const el = $('docBase');
+      if (el) el.textContent = base;
+      const img = $('docImgCurl');
+      const vid = $('docVidCurl');
+      if (img) img.textContent = img.textContent.replaceAll('https://HOST/v1', base);
+      if (vid) vid.textContent = vid.textContent.replaceAll('https://HOST/v1', base);
+    }
+
     // init
     $('apiKey').value = localStorage.getItem('hf_proxy_api_key') || '';
     $('apiKey').onchange = () => localStorage.setItem('hf_proxy_api_key', $('apiKey').value.trim());
+    fillDocsHost();
     (async () => {
       try {
         const me = await api('/admin/console/me');
