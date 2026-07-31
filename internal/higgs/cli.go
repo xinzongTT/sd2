@@ -147,7 +147,9 @@ func (c *CLI) runOnce(a *account.Account, args ...string) ([]byte, error) {
 		if msg == "" {
 			msg = err.Error()
 		}
-		return nil, fmt.Errorf("higgsfield %s: %s", strings.Join(args, " "), msg)
+		// Put real CLI error first; truncate huge prompts in command echo.
+		cmdEcho := compactArgs(args)
+		return nil, fmt.Errorf("%s (higgsfield %s)", msg, cmdEcho)
 	}
 	return stdout.Bytes(), nil
 }
@@ -395,6 +397,28 @@ func LoadAccountFromUserCLI() (*account.Account, string, error) {
 		return nil, "", err
 	}
 	return a, userHome, nil
+}
+
+// compactArgs shortens CLI args for error messages (avoid dumping huge prompts).
+func compactArgs(args []string) string {
+	out := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if strings.HasPrefix(a, "--") && i+1 < len(args) && !strings.HasPrefix(args[i+1], "--") {
+			val := args[i+1]
+			if len(val) > 80 {
+				val = val[:80] + "…"
+			}
+			// collapse newlines for one-line logs
+			val = strings.ReplaceAll(val, "\r", " ")
+			val = strings.ReplaceAll(val, "\n", " ")
+			out = append(out, a, val)
+			i++
+			continue
+		}
+		out = append(out, a)
+	}
+	return strings.Join(out, " ")
 }
 
 func formatDuration(d time.Duration) string {

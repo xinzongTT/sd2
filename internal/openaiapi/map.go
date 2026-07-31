@@ -99,8 +99,17 @@ func VideoParams(req VideoRequest) map[string]string {
 			params["resolution"] = "4k"
 		}
 	}
-	if req.Seconds > 0 {
-		params["duration"] = fmt.Sprintf("%d", req.Seconds)
+	sec := req.Seconds
+	// Seedance (and most Higgsfield video jobs) reject duration < 4.
+	// Canvas often sends seconds=1; clamp to a valid range.
+	if sec > 0 && sec < 4 {
+		sec = 4
+	}
+	if sec > 15 {
+		sec = 15
+	}
+	if sec > 0 {
+		params["duration"] = fmt.Sprintf("%d", sec)
 	}
 	if m := strings.TrimSpace(req.Mode); m != "" {
 		params["mode"] = strings.ToLower(m)
