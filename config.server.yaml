@@ -1,0 +1,21 @@
+# Server deploy config — for canvas OpenAI channel
+host: "0.0.0.0"
+port: 8317
+api_keys:
+  - sk-canvas-change-me
+admin_api_key: sk-admin-change-me
+admin_password: admin123
+data_dir: ./data
+log_max_entries: 5000
+cli_path: higgsfield
+min_credits: 0.1
+account_concurrency: 2
+global_concurrency: 8
+image_timeout_sec: 300
+video_timeout_sec: 1200
+poll_interval_ms: 3000
+default_image_model: text2image_soul_v2
+default_video_model: seedance_2_0_fast
+aliases:
+  soul-v2: text2image_soul_v2
+  soul: text2image_soul_v2

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>登录 · Higgsfield Proxy</title>
+  <style>
+    :root { --bg:#0b0d12; --card:#121826; --line:#2a3348; --text:#e8eefc; --muted:#8b97b0; --accent:#8b5cf6; --bad:#f87171; }
+    * { box-sizing: border-box; }
+    body {
+      margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Microsoft YaHei", sans-serif;
+      background: radial-gradient(900px 500px at 20% 0%, #3b1d6e55, transparent 60%), var(--bg); color:var(--text);
+    }
+    .card {
+      width: min(400px, 92vw); background:var(--card); border:1px solid var(--line); border-radius:16px;
+      padding:28px 24px; box-shadow:0 20px 60px #0006;
+    }
+    h1 { margin:0 0 6px; font-size:1.25rem; }
+    p { margin:0 0 18px; color:var(--muted); font-size:.9rem; }
+    label { display:block; font-size:.8rem; color:var(--muted); margin-bottom:6px; }
+    input {
+      width:100%; padding:12px 14px; border-radius:10px; border:1px solid var(--line);
+      background:#1a2030; color:var(--text); outline:none; font-size:1rem;
+    }
+    input:focus { border-color:var(--accent); }
+    button {
+      width:100%; margin-top:14px; padding:12px; border:0; border-radius:10px; cursor:pointer;
+      font-weight:700; color:#fff; background:linear-gradient(135deg, var(--accent), #6d28d9);
+    }
+    .err { color:var(--bad); font-size:.85rem; margin-top:10px; min-height:1.2em; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Higgsfield Proxy</h1>
+    <p>管理台登录 · 请输入页面密码</p>
+    <label>密码</label>
+    <input id="pw" type="password" placeholder="admin password" autofocus />
+    <button id="btn">登录</button>
+    <div class="err" id="err"></div>
+  </div>
+  <script>
+    async function login() {
+      const password = document.getElementById('pw').value;
+      const err = document.getElementById('err');
+      err.textContent = '';
+      try {
+        const res = await fetch('/admin/console/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ password }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || '登录失败');
+        location.href = '/';
+      } catch (e) {
+        err.textContent = e.message || String(e);
+      }
+    }
+    document.getElementById('btn').onclick = login;
+    document.getElementById('pw').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+  </script>
+</body>
+</html>

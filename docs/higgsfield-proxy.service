@@ -1,0 +1,20 @@
+[Unit]
+Description=Higgsfield OpenAI Proxy
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/higgsfield-proxy
+Environment=HF_PROXY_HOST=0.0.0.0
+Environment=HF_PROXY_PORT=8317
+Environment=HF_PROXY_DATA_DIR=/opt/higgsfield-proxy/data
+Environment=HF_PROXY_API_KEYS=sk-canvas-change-me
+Environment=HF_PROXY_ADMIN_KEY=sk-admin-change-me
+ExecStart=/opt/higgsfield-proxy/higgsfield-proxy -config /opt/higgsfield-proxy/config.server.yaml
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

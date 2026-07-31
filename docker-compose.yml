@@ -1,0 +1,25 @@
+services:
+  higgsfield-proxy:
+    build: .
+    image: higgsfield-proxy:latest
+    container_name: higgsfield-proxy
+    restart: unless-stopped
+    ports:
+      - "8317:8317"
+    environment:
+      HF_PROXY_HOST: "0.0.0.0"
+      HF_PROXY_PORT: "8317"
+      HF_PROXY_DATA_DIR: "/data"
+      # comma-separated client keys for canvas
+      HF_PROXY_API_KEYS: "sk-canvas-change-me"
+      HF_PROXY_ADMIN_KEY: "sk-admin-change-me"
+    volumes:
+      - hf_proxy_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8317/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  hf_proxy_data:

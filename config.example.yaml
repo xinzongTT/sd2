@@ -1,0 +1,19 @@
+host: 127.0.0.1
+port: 8317
+api_keys:
+  - sk-local-change-me
+admin_api_key: sk-admin-change-me
+data_dir: ./data
+cli_path: higgsfield
+min_credits: 0.1
+account_concurrency: 1
+global_concurrency: 4
+image_timeout_sec: 180
+video_timeout_sec: 1200
+poll_interval_ms: 3000
+default_image_model: text2image_soul_v2
+default_video_model: seedance_2_0
+aliases:
+  soul-v2: text2image_soul_v2
+  soul: text2image_soul_v2
+  # virtual: seedance_2_0_fast => seedance_2_0 + mode=fast

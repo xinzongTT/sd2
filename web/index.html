@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Higgsfield Proxy Console</title>
+  <style>
+    :root {
+      --bg:#0b0d12; --bg3:#1a2030; --line:#2a3348; --text:#e8eefc; --muted:#8b97b0;
+      --accent:#8b5cf6; --accent2:#22d3ee; --ok:#34d399; --warn:#fbbf24; --bad:#f87171;
+      --card:#121826ee; --shadow:0 10px 40px rgba(0,0,0,.35); --radius:16px;
+    }
+    *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;background:radial-gradient(1200px 600px at 10% -10%,#3b1d6e55,transparent 60%),var(--bg);color:var(--text);min-height:100vh}
+    .wrap{max-width:1240px;margin:0 auto;padding:20px 16px 50px}
+    header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px}
+    .brand{display:flex;gap:12px;align-items:center}
+    .logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 24px #8b5cf666}
+    h1{font-size:1.15rem;margin:0} .sub{color:var(--muted);font-size:.82rem;margin-top:2px}
+    .nav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+    .nav button{padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer;font-weight:600}
+    .nav button.active{background:#8b5cf622;color:var(--text);border-color:#8b5cf666}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:14px}
+    .card h2{margin:0 0 12px;font-size:1rem;display:flex;justify-content:space-between;align-items:center;gap:8px}
+    .grid{display:grid;gap:14px;grid-template-columns:1.1fr .9fr}
+    @media(max-width:960px){.grid{grid-template-columns:1fr}}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .btn{border:0;border-radius:10px;padding:9px 14px;cursor:pointer;font-weight:600;background:linear-gradient(135deg,var(--accent),#6d28d9);color:#fff}
+    .btn.secondary{background:var(--bg3);border:1px solid var(--line);color:var(--text)}
+    .btn.danger{background:linear-gradient(135deg,#ef4444,#b91c1c)}
+    .btn.ok{background:linear-gradient(135deg,#10b981,#059669)}
+    .btn:disabled{opacity:.55;cursor:not-allowed}
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+    @media(max-width:700px){.stats{grid-template-columns:repeat(2,1fr)}}
+    .stat{background:var(--bg3);border:1px solid var(--line);border-radius:12px;padding:12px}
+    .stat .n{font-size:1.35rem;font-weight:700}.stat .l{color:var(--muted);font-size:.75rem;margin-top:2px}
+    table{width:100%;border-collapse:collapse;font-size:.86rem}
+    th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+    th{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.03em}
+    .badge{display:inline-flex;border-radius:999px;padding:2px 8px;font-size:.72rem;font-weight:600;border:1px solid var(--line);background:var(--bg3)}
+    .badge.ok{color:var(--ok);border-color:#34d39944}.badge.bad{color:var(--bad);border-color:#f8717144}
+    label{display:block;font-size:.78rem;color:var(--muted);margin:0 0 6px}
+    .field{margin-bottom:12px}
+    select,textarea,.field input,input[type=text],input[type=password],input[type=file]{width:100%;background:var(--bg3);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:10px 12px;outline:none;font:inherit}
+    textarea{min-height:100px;resize:vertical}
+    .preview{min-height:200px;border:1px dashed var(--line);border-radius:14px;display:flex;align-items:center;justify-content:center;background:#0a0e16;overflow:hidden}
+    .preview img,.preview video{max-width:100%;max-height:380px;display:block}
+    .muted{color:var(--muted);font-size:.85rem}.tiny{font-size:.75rem;color:var(--muted)}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.78rem;word-break:break-all}
+    .toast{position:fixed;right:16px;bottom:16px;z-index:50;display:flex;flex-direction:column;gap:8px}
+    .toast .item{background:#111827;border:1px solid var(--line);padding:10px 12px;border-radius:10px;min-width:200px}
+    .toast .item.err{border-color:#f8717166}
+    .panel{display:none}.panel.active{display:block}
+    .full{grid-column:1/-1}
+    a{color:#a78bfa}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <div class="logo"></div>
+        <div>
+          <h1>Higgsfield Proxy Console</h1>
+          <div class="sub">密钥管理 · 调用日志 · 生成台 · 账号池</div>
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn secondary" id="btnRefresh">刷新</button>
+        <button class="btn secondary" id="btnLogout">退出登录</button>
+      </div>
+    </header>
+
+    <div class="nav" id="nav">
+      <button class="active" data-panel="dash">总览</button>
+      <button data-panel="keys">API 密钥</button>
+      <button data-panel="logs">调用日志</button>
+      <button data-panel="gen">生成台</button>
+      <button data-panel="accounts">账号池</button>
+    </div>
+
+    <!-- DASH -->
+    <section class="panel active" id="panel-dash">
+      <div class="card">
+        <h2>状态总览 <span class="tiny" id="addrText"></span></h2>
+        <div class="stats">
+          <div class="stat"><div class="n" id="stReady">-</div><div class="l">可用账号</div></div>
+          <div class="stat"><div class="n" id="stTotal">-</div><div class="l">账号总数</div></div>
+          <div class="stat"><div class="n" id="stKeys">-</div><div class="l">API 密钥</div></div>
+          <div class="stat"><div class="n" id="stLogs">-</div><div class="l">日志条数</div></div>
+        </div>
+        <div class="stats" id="logMiniStats"></div>
+      </div>
+    </section>
+
+    <!-- KEYS -->
+    <section class="panel" id="panel-keys">
+      <div class="card">
+        <h2>
+          <span>API 密钥</span>
+          <span class="row">
+            <input id="keyName" placeholder="名称，如 canvas" style="width:140px" />
+            <input id="keyNote" placeholder="备注" style="width:180px" />
+            <button class="btn ok" id="btnCreateKey">生成密钥</button>
+          </span>
+        </h2>
+        <p class="muted">画布渠道填这里生成的 Key。配置文件里的 key 启动时会自动导入一次。</p>
+        <div style="overflow:auto">
+          <table>
+            <thead><tr><th>名称</th><th>Key</th><th>状态</th><th>最近使用</th><th>操作</th></tr></thead>
+            <tbody id="keyRows"><tr><td colspan="5" class="muted">加载中...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- LOGS -->
+    <section class="panel" id="panel-logs">
+      <div class="card">
+        <h2>
+          <span>调用日志</span>
+          <span class="row">
+            <input id="logQ" placeholder="搜索 prompt / 模型 / URL" style="width:220px" />
+            <button class="btn secondary" id="btnLogSearch">搜索</button>
+            <button class="btn secondary" id="btnLogRefresh">刷新</button>
+          </span>
+        </h2>
+        <div style="overflow:auto;max-height:70vh">
+          <table>
+            <thead>
+              <tr>
+                <th>时间</th><th>密钥</th><th>模型</th><th>端点</th><th>状态</th>
+                <th>延迟</th><th>Prompt / 请求</th><th>结果 URL</th>
+              </tr>
+            </thead>
+            <tbody id="logRows"><tr><td colspan="8" class="muted">加载中...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- GEN -->
+    <section class="panel" id="panel-gen">
+      <div class="grid">
+        <div class="card">
+          <h2>生成台</h2>
+          <div class="row" style="margin-bottom:10px">
+            <button class="tab-mode active" data-mode="image" id="modeImage">图片</button>
+            <button class="tab-mode" data-mode="video" id="modeVideo">视频</button>
+          </div>
+          <div class="field"><label>API Key（画布密钥，用于实际调用）</label><input id="apiKey" type="password" placeholder="sk-..." /></div>
+          <div class="field"><label>模型</label><select id="model"></select></div>
+          <div class="field"><label>Prompt</label><textarea id="prompt" placeholder="a cinematic product photo..."></textarea></div>
+          <div class="row">
+            <div class="field" style="flex:1"><label>尺寸</label>
+              <select id="size">
+                <option value="1024x1024">1:1</option>
+                <option value="1280x720">16:9</option>
+                <option value="720x1280">9:16</option>
+              </select>
+            </div>
+            <div class="field" style="flex:1"><label>质量</label>
+              <select id="quality"><option value="1.5k">1.5k</option><option value="2k">2k</option></select>
+            </div>
+          </div>
+          <div class="field"><label>参考图</label><input id="refImages" type="file" accept="image/*" multiple /></div>
+          <div class="field" id="refVideoField" style="display:none"><label>参考视频</label><input id="refVideos" type="file" accept="video/*" multiple /></div>
+          <div class="field" id="startEndField" style="display:none"><label>首帧 / 尾帧</label>
+            <div class="row"><input id="startImage" type="file" accept="image/*" /><input id="endImage" type="file" accept="image/*" /></div>
+          </div>
+          <div class="row"><button class="btn" id="btnGenerate">开始生成</button><span class="muted" id="genStatus"></span></div>
+        </div>
+        <div class="card">
+          <h2>预览</h2>
+          <div class="preview" id="preview"><div class="muted">结果在这里</div></div>
+          <a id="resultLink" class="tiny" href="#" target="_blank" style="display:none;margin-top:8px">打开原文件</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ACCOUNTS -->
+    <section class="panel" id="panel-accounts">
+      <div class="card">
+        <h2>
+          <span>Higgsfield 账号池</span>
+          <span class="row">
+            <button class="btn ok" id="btnImport">导入 CLI 登录</button>
+            <button class="btn" id="btnOAuth">OAuth 加号</button>
+          </span>
+        </h2>
+        <table>
+          <thead><tr><th>邮箱/ID</th><th>Plan</th><th>Credits</th><th>状态</th><th>操作</th></tr></thead>
+          <tbody id="accountRows"><tr><td colspan="5" class="muted">加载中</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const state = { mode: 'image', models: [] };
+
+    function toast(msg, err=false) {
+      const el = document.createElement('div');
+      el.className = 'item' + (err ? ' err' : '');
+      el.textContent = msg;
+      $('toast').appendChild(el);
+      setTimeout(() => el.remove(), 3000);
+    }
+
+    async function api(path, { method='GET', body=null, form=null } = {}) {
+      const headers = {};
+      let b = null;
+      if (form) {
+        b = form;
+      } else if (body != null) {
+        headers['Content-Type'] = 'application/json';
+        b = JSON.stringify(body);
+      }
+      // generation uses canvas api key header when provided
+      if (path.startsWith('/v1/') && $('apiKey').value.trim()) {
+        headers['Authorization'] = 'Bearer ' + $('apiKey').value.trim();
+      }
+      const res = await fetch(path, { method, headers, body: b, credentials: 'same-origin' });
+      if (res.status === 401 && !path.includes('console/login')) {
+        // session expired for admin pages
+        if (path.startsWith('/admin/') && !path.includes('/console/')) {
+          location.href = '/login.html';
+          throw new Error('请重新登录');
+        }
+      }
+      const text = await res.text();
+      let data; try { data = text ? JSON.parse(text) : null; } catch { data = { raw: text }; }
+      if (!res.ok) throw new Error(data?.error?.message || data?.error || text || res.statusText);
+      return data;
+    }
+
+    // nav
+    document.querySelectorAll('#nav button').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('#nav button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        $('panel-' + btn.dataset.panel).classList.add('active');
+        if (btn.dataset.panel === 'keys') refreshKeys();
+        if (btn.dataset.panel === 'logs') refreshLogs();
+        if (btn.dataset.panel === 'accounts') refreshAccounts();
+        if (btn.dataset.panel === 'gen') refreshModels();
+      };
+    });
+
+    async function refreshStatus() {
+      try {
+        const st = await api('/admin/status');
+        $('stReady').textContent = st.accounts_ready ?? '-';
+        $('stTotal').textContent = st.accounts_total ?? '-';
+        $('stKeys').textContent = st.keys_total ?? '-';
+        $('addrText').textContent = st.addr || '';
+        const ls = st.log_stats || {};
+        $('stLogs').textContent = ls.total ?? '-';
+        const mini = [];
+        if (ls.success != null) mini.push(`<div class="stat"><div class="n">${ls.success}</div><div class="l">成功</div></div>`);
+        if (ls.failed != null) mini.push(`<div class="stat"><div class="n">${ls.failed}</div><div class="l">失败</div></div>`);
+        (ls.by_model || []).slice(0,2).forEach(m => mini.push(`<div class="stat"><div class="n">${m.count}</div><div class="l">${escapeHtml(m.name)}</div></div>`));
+        $('logMiniStats').innerHTML = mini.join('');
+      } catch (e) {
+        if (String(e.message).includes('登录')) return;
+        toast(e.message, true);
+      }
+    }
+
+    async function refreshKeys() {
+      try {
+        const data = await api('/admin/keys');
+        const keys = data.keys || [];
+        if (!keys.length) {
+          $('keyRows').innerHTML = '<tr><td colspan="5" class="muted">暂无密钥，点右上角生成</td></tr>';
+          return;
+        }
+        $('keyRows').innerHTML = keys.map(k => {
+          const st = k.enabled ? '<span class="badge ok">启用</span>' : '<span class="badge bad">禁用</span>';
+          const used = k.last_used && k.last_used !== '0001-01-01T00:00:00Z' ? new Date(k.last_used).toLocaleString() : '-';
+          return `<tr>
+            <td><b>${escapeHtml(k.name)}</b><div class="tiny">${escapeHtml(k.note||'')}</div></td>
+            <td class="mono">${escapeHtml(k.key)} <button class="btn secondary" style="padding:4px 8px;font-size:.72rem" data-copy="${escapeHtml(k.key)}">复制</button></td>
+            <td>${st}</td>
+            <td class="tiny">${escapeHtml(used)}</td>
+            <td>
+              ${k.enabled
+                ? `<button class="btn danger" style="padding:6px 10px;font-size:.75rem" data-kact="disable" data-id="${k.id}">禁用</button>`
+                : `<button class="btn secondary" style="padding:6px 10px;font-size:.75rem" data-kact="enable" data-id="${k.id}">启用</button>`}
+              <button class="btn secondary" style="padding:6px 10px;font-size:.75rem" data-kact="delete" data-id="${k.id}">删除</button>
+            </td>
+          </tr>`;
+        }).join('');
+      } catch (e) { $('keyRows').innerHTML = `<tr><td colspan="5" class="muted">${escapeHtml(e.message)}</td></tr>`; }
+    }
+
+    $('keyRows').onclick = async (e) => {
+      const copy = e.target.closest('[data-copy]');
+      if (copy) {
+        await navigator.clipboard.writeText(copy.dataset.copy);
+        toast('已复制');
+        return;
+      }
+      const btn = e.target.closest('[data-kact]');
+      if (!btn) return;
+      const id = btn.dataset.id, act = btn.dataset.kact;
+      if (act === 'delete' && !confirm('确定删除该密钥？')) return;
+      try {
+        await api(`/admin/keys/${id}/${act}`, { method: 'POST' });
+        toast('已更新');
+        refreshKeys(); refreshStatus();
+      } catch (err) { toast(err.message, true); }
+    };
+
+    $('btnCreateKey').onclick = async () => {
+      try {
+        const data = await api('/admin/keys', { method: 'POST', body: { name: $('keyName').value, note: $('keyNote').value } });
+        toast('已生成: ' + (data.key?.key || ''));
+        if (data.key?.key) {
+          $('apiKey').value = data.key.key;
+          localStorage.setItem('hf_proxy_api_key', data.key.key);
+        }
+        $('keyName').value = ''; $('keyNote').value = '';
+        refreshKeys(); refreshStatus();
+      } catch (e) { toast(e.message, true); }
+    };
+
+    async function refreshLogs() {
+      try {
+        const q = $('logQ').value.trim();
+        const data = await api('/admin/logs?limit=100' + (q ? '&q=' + encodeURIComponent(q) : ''));
+        const logs = data.logs || [];
+        if (!logs.length) {
+          $('logRows').innerHTML = '<tr><td colspan="8" class="muted">暂无日志</td></tr>';
+          return;
+        }
+        $('logRows').innerHTML = logs.map(l => {
+          const t = l.time ? new Date(l.time).toLocaleString() : '-';
+          const stCls = (l.status >= 200 && l.status < 400 && !l.error) ? 'ok' : 'bad';
+          const prompt = escapeHtml((l.prompt || l.request || '').slice(0, 180));
+          const url = l.result_url
+            ? `<a href="${escapeAttr(l.result_url)}" target="_blank" rel="noopener">打开</a><div class="mono tiny">${escapeHtml(l.result_url.slice(0,80))}...</div>`
+            : (l.error ? `<span class="badge bad">${escapeHtml(l.error.slice(0,80))}</span>` : '-');
+          return `<tr>
+            <td class="tiny">${escapeHtml(t)}</td>
+            <td class="tiny">${escapeHtml(l.key_name || l.api_key || '-')}</td>
+            <td class="tiny">${escapeHtml(l.model || '-')}</td>
+            <td class="tiny mono">${escapeHtml(l.path || '')}</td>
+            <td><span class="badge ${stCls}">${l.status||'-'}</span></td>
+            <td class="tiny">${l.latency_ms||0}ms</td>
+            <td class="tiny" style="max-width:280px">${prompt || '-'}</td>
+            <td style="max-width:220px">${url}</td>
+          </tr>`;
+        }).join('');
+      } catch (e) {
+        $('logRows').innerHTML = `<tr><td colspan="8" class="muted">${escapeHtml(e.message)}</td></tr>`;
+      }
+    }
+    $('btnLogSearch').onclick = refreshLogs;
+    $('btnLogRefresh').onclick = refreshLogs;
+
+    async function refreshAccounts() {
+      try {
+        const data = await api('/admin/accounts');
+        const list = data.accounts || [];
+        if (!list.length) {
+          $('accountRows').innerHTML = '<tr><td colspan="5" class="muted">暂无账号</td></tr>';
+          return;
+        }
+        $('accountRows').innerHTML = list.map(a => {
+          const st = a.disabled ? '<span class="badge bad">禁用</span>' : '<span class="badge ok">可用</span>';
+          const act = a.disabled
+            ? `<button class="btn secondary" style="padding:6px 10px;font-size:.75rem" data-a="enable" data-id="${a.id}">启用</button>`
+            : `<button class="btn danger" style="padding:6px 10px;font-size:.75rem" data-a="disable" data-id="${a.id}">禁用</button>`;
+          return `<tr>
+            <td>${escapeHtml(a.email||a.id)}<div class="tiny">${escapeHtml(a.id)}</div></td>
+            <td>${escapeHtml(a.plan||'-')}</td>
+            <td><b>${Number(a.credits||0).toFixed(2)}</b></td>
+            <td>${st}</td><td>${act}</td></tr>`;
+        }).join('');
+      } catch (e) {
+        $('accountRows').innerHTML = `<tr><td colspan="5" class="muted">${escapeHtml(e.message)}</td></tr>`;
+      }
+    }
+    $('accountRows').onclick = async (e) => {
+      const btn = e.target.closest('[data-a]');
+      if (!btn) return;
+      try {
+        await api(`/admin/accounts/${btn.dataset.id}/${btn.dataset.a}`, { method: 'POST' });
+        refreshAccounts(); refreshStatus();
+      } catch (err) { toast(err.message, true); }
+    };
+    $('btnImport').onclick = async () => {
+      try { await api('/admin/accounts/import-cli', { method: 'POST' }); toast('导入成功'); refreshAccounts(); refreshStatus(); }
+      catch (e) { toast(e.message, true); }
+    };
+    $('btnOAuth').onclick = async () => {
+      if (!confirm('将打开浏览器 OAuth，页面会等待完成')) return;
+      try { await api('/admin/auth/login', { method: 'POST' }); toast('加号成功'); refreshAccounts(); refreshStatus(); }
+      catch (e) { toast(e.message, true); }
+    };
+
+    // generate
+    async function refreshModels() {
+      try {
+        if (!$('apiKey').value.trim()) {
+          // try first enabled key
+          const data = await api('/admin/keys');
+          const k = (data.keys||[]).find(x => x.enabled);
+          if (k) $('apiKey').value = k.key;
+        }
+        const data = await api('/v1/models');
+        state.models = (data.data||[]).map(m => m.id).filter(id => !String(id).includes('->'));
+        fillModels();
+      } catch (e) {
+        state.models = ['text2image_soul_v2','seedance_2_0_fast','seedance_2_0_mini'];
+        fillModels();
+      }
+    }
+    function fillModels() {
+      const prefer = state.mode === 'image'
+        ? ['text2image_soul_v2','nano_banana','seedream_v5_pro']
+        : ['seedance_2_0_fast','seedance_2_0_mini','seedance_2_0'];
+      let opts = state.models.slice();
+      if (state.mode === 'video') opts = opts.filter(id => /video|seedance|kling|veo|wan2|hailuo|gemini_omni|cinematic/i.test(id));
+      else opts = opts.filter(id => !/video|seedance|kling|veo|wan2/i.test(id) || /image|soul|banana|seedream|flux/i.test(id));
+      if (!opts.length) opts = prefer;
+      opts = [...new Set([...prefer.filter(p=>opts.includes(p)||true), ...opts])];
+      $('model').innerHTML = opts.map(id => `<option value="${escapeHtml(id)}">${escapeHtml(id)}</option>`).join('');
+    }
+    function setMode(m) {
+      state.mode = m;
+      document.querySelectorAll('.tab-mode').forEach(b => b.classList.toggle('active', b.dataset.mode===m));
+      $('refVideoField').style.display = m==='video' ? '' : 'none';
+      $('startEndField').style.display = m==='video' ? '' : 'none';
+      fillModels();
+    }
+    $('modeImage').onclick = () => setMode('image');
+    $('modeVideo').onclick = () => setMode('video');
+    // style tab-mode like pills
+    document.querySelectorAll('.tab-mode').forEach(b => {
+      b.classList.add('btn','secondary');
+      b.style.borderRadius = '999px';
+    });
+
+    async function uploadFile(file) {
+      const fd = new FormData(); fd.append('file', file);
+      return api('/v1/files', { method: 'POST', form: fd });
+    }
+    async function uploadList(el) {
+      if (!el?.files?.length) return [];
+      const out = [];
+      for (const f of el.files) {
+        const r = await uploadFile(f);
+        out.push(r.path || r.id);
+      }
+      return out;
+    }
+    $('btnGenerate').onclick = async () => {
+      const prompt = $('prompt').value.trim();
+      const model = $('model').value;
+      const size = $('size').value;
+      const quality = $('quality').value;
+      $('btnGenerate').disabled = true;
+      $('genStatus').textContent = '生成中...';
+      $('preview').innerHTML = '<div class="muted">处理中...</div>';
+      try {
+        const image_references = await uploadList($('refImages'));
+        let start_image='', end_image='', video_references=[];
+        if (state.mode === 'video') {
+          video_references = await uploadList($('refVideos'));
+          const s = await uploadList($('startImage'));
+          const e = await uploadList($('endImage'));
+          start_image = s[0]||''; end_image = e[0]||'';
+        }
+        if (!prompt && !image_references.length && !start_image) throw new Error('请输入 prompt 或上传参考图');
+        const body = { model, prompt, size, quality, n:1, wait:true, image_references, video_references };
+        if (image_references[0]) body.image = image_references[0];
+        if (start_image) body.start_image = start_image;
+        if (end_image) body.end_image = end_image;
+        const path = state.mode === 'image' ? '/v1/images/generations' : '/v1/videos/generations';
+        const data = await api(path, { method: 'POST', body });
+        const url = data?.data?.[0]?.url || data?.url;
+        if (!url) throw new Error('未返回 URL');
+        if (state.mode === 'video') $('preview').innerHTML = `<video src="${escapeAttr(url)}" controls autoplay muted></video>`;
+        else $('preview').innerHTML = `<img src="${escapeAttr(url)}" />`;
+        $('resultLink').href = url; $('resultLink').style.display = 'inline';
+        toast('生成成功');
+        refreshLogs(); refreshStatus();
+      } catch (e) {
+        $('preview').innerHTML = `<div class="muted" style="color:var(--bad)">${escapeHtml(e.message)}</div>`;
+        toast(e.message, true);
+      } finally {
+        $('btnGenerate').disabled = false;
+        $('genStatus').textContent = '';
+      }
+    };
+
+    $('btnLogout').onclick = async () => {
+      try { await api('/admin/console/logout', { method: 'POST' }); } catch {}
+      location.href = '/login.html';
+    };
+    $('btnRefresh').onclick = () => { refreshStatus(); refreshKeys(); refreshLogs(); refreshAccounts(); };
+
+    function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+    function escapeAttr(s){return escapeHtml(s);}
+
+    // init
+    $('apiKey').value = localStorage.getItem('hf_proxy_api_key') || '';
+    $('apiKey').onchange = () => localStorage.setItem('hf_proxy_api_key', $('apiKey').value.trim());
+    (async () => {
+      try {
+        const me = await api('/admin/console/me');
+        if (me.auth_required && !me.ok) { location.href = '/login.html'; return; }
+      } catch { location.href = '/login.html'; return; }
+      await refreshStatus();
+      await refreshKeys();
+    })();
+  </script>
+</body>
+</html>
