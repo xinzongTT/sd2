@@ -370,12 +370,14 @@
           return;
         }
         $('accountRows').innerHTML = list.map(a => {
-          const st = a.disabled ? '<span class="badge bad">禁用</span>' : '<span class="badge ok">可用</span>';
+          const st = accountStatusBadge(a);
           const act = a.disabled
             ? `<button class="btn secondary" style="padding:6px 10px;font-size:.75rem" data-a="enable" data-id="${a.id}">启用</button>`
             : `<button class="btn danger" style="padding:6px 10px;font-size:.75rem" data-a="disable" data-id="${a.id}">禁用</button>`;
+          const exp = a.expires_at ? `<div class="tiny">到期: ${escapeHtml(String(a.expires_at).replace('T',' ').replace('Z',''))}</div>` : '';
+          const err = a.last_error ? `<div class="tiny" style="color:var(--bad);max-width:220px">${escapeHtml(String(a.last_error).slice(0,120))}</div>` : '';
           return `<tr>
-            <td>${escapeHtml(a.email||a.id)}<div class="tiny">${escapeHtml(a.id)}</div></td>
+            <td>${escapeHtml(a.email||a.id)}<div class="tiny">${escapeHtml(a.id)}</div>${exp}${err}</td>
             <td>${escapeHtml(a.plan||'-')}</td>
             <td><b>${Number(a.credits||0).toFixed(2)}</b></td>
             <td>${st}</td><td>${act}</td></tr>`;
@@ -506,6 +508,23 @@
 
     function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
     function escapeAttr(s){return escapeHtml(s);}
+    function accountStatusBadge(a) {
+      const s = a.auth_status || (a.disabled ? 'disabled' : (a.ready ? 'valid' : 'expired'));
+      const map = {
+        valid: ['ok', '可用'],
+        expired: ['bad', 'Token过期'],
+        refresh_failed: ['bad', '需重新登录'],
+        disabled: ['bad', '禁用'],
+        cooldown: ['warn', '冷却中'],
+        no_token: ['bad', '无Token'],
+      };
+      const [cls, text] = map[s] || ['bad', s || '不可用'];
+      // never show 可用 unless ready===true and valid
+      if (s === 'valid' && a.ready === false) {
+        return '<span class="badge bad">不可用</span>';
+      }
+      return `<span class="badge ${cls}">${text}</span>`;
+    }
 
     // init
     $('apiKey').value = localStorage.getItem('hf_proxy_api_key') || '';

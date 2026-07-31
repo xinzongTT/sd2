@@ -45,9 +45,86 @@ func (h *Handler) Accounts(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]map[string]any, 0, len(list))
 	for _, a := range list {
+		h.probeAccountAuth(a)
 		out = append(out, a.Public())
 	}
 	h.writeJSON(w, 200, map[string]any{"accounts": out})
+}
+
+// probeAccountAuth refreshes if needed and verifies session; updates AuthStatus on account + disk.
+func (h *Handler) probeAccountAuth(a *account.Account) {
+	if a == nil || a.Disabled {
+		if a != nil {
+			a.AuthStatus = "disabled"
+		}
+		return
+	}
+	if a.AccessToken == "" {
+		a.AuthStatus = "no_token"
+		return
+	}
+	now := time.Now()
+	// try refresh if expired / near expiry
+	changed, err := h.CLI.EnsureAuth(a)
+	if err != nil {
+		if a.TokenExpired(now) || higgs.IsAuthError(err) {
+			a.AuthStatus = "refresh_failed"
+			a.LastError = err.Error()
+			_ = h.Pool.Save(a)
+		}
+		return
+	}
+	if changed {
+		h.Pool.UpdateTokens(a.ID, a.AccessToken, a.RefreshToken, a.ExpiresAt, a.TokenType, a.Scope)
+	}
+	// live check
+	st, err := h.CLI.AccountStatus(a)
+	if err != nil {
+		if higgs.IsAuthError(err) {
+			// one more forced refresh
+			if rerr := higgs.RefreshAccount(a); rerr != nil {
+				a.AuthStatus = "refresh_failed"
+				a.LastError = rerr.Error()
+				_ = h.Pool.Save(a)
+				return
+			}
+			h.Pool.UpdateTokens(a.ID, a.AccessToken, a.RefreshToken, a.ExpiresAt, a.TokenType, a.Scope)
+			st, err = h.CLI.AccountStatus(a)
+			if err != nil {
+				a.AuthStatus = "refresh_failed"
+				a.LastError = err.Error()
+				_ = h.Pool.Save(a)
+				return
+			}
+		} else {
+			// network blip: if token not expired, keep valid
+			if a.TokenExpired(time.Now()) {
+				a.AuthStatus = "expired"
+			} else {
+				a.AuthStatus = "valid"
+			}
+			return
+		}
+	}
+	a.AuthStatus = "valid"
+	a.LastError = ""
+	if st != nil {
+		a.Credits = st.Credits
+		if st.Email != "" {
+			a.Email = st.Email
+		}
+		if st.Plan != "" {
+			a.Plan = st.Plan
+		}
+		h.Pool.UpdateCredits(a.ID, st.Credits, st.Plan, st.Email)
+	}
+	// clear sticky auth error on disk
+	if saved, err := h.Pool.Get(a.ID); err == nil {
+		saved.AuthStatus = "valid"
+		saved.LastError = ""
+		saved.Credits = a.Credits
+		_ = h.Pool.Save(saved)
+	}
 }
 
 func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
@@ -55,7 +132,8 @@ func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
 	healthy := 0
 	now := time.Now()
 	for _, a := range list {
-		if a.Healthy(h.Cfg.MinCredits, now) {
+		// light local check (Accounts page does live probe)
+		if a.StatusLabel(now) == "valid" && a.Healthy(h.Cfg.MinCredits, now) {
 			healthy++
 		}
 	}
