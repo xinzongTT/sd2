@@ -225,19 +225,49 @@ func (h *Handler) prepareAccount(acc *account.Account) {
 	if err == nil && changed {
 		h.Pool.UpdateTokens(acc.ID, acc.AccessToken, acc.RefreshToken, acc.ExpiresAt, acc.TokenType, acc.Scope)
 	}
-	if st, err := h.CLI.AccountStatus(acc); err == nil {
-		h.Pool.UpdateCredits(acc.ID, st.Credits, st.Plan, st.Email)
-		acc.Credits = st.Credits
-	} else if higgs.IsAuthError(err) {
-		// force refresh + retry status once
-		if rerr := higgs.RefreshAccount(acc); rerr == nil {
-			h.Pool.UpdateTokens(acc.ID, acc.AccessToken, acc.RefreshToken, acc.ExpiresAt, acc.TokenType, acc.Scope)
-			if st2, err2 := h.CLI.AccountStatus(acc); err2 == nil {
-				h.Pool.UpdateCredits(acc.ID, st2.Credits, st2.Plan, st2.Email)
-				acc.Credits = st2.Credits
+	h.refreshCredits(acc)
+}
+
+// refreshCredits pulls live balance from upstream and persists to account pool.
+func (h *Handler) refreshCredits(acc *account.Account) {
+	if acc == nil || acc.ID == "" {
+		return
+	}
+	st, err := h.CLI.AccountStatus(acc)
+	if err != nil {
+		if higgs.IsAuthError(err) {
+			if rerr := higgs.RefreshAccount(acc); rerr == nil {
+				h.Pool.UpdateTokens(acc.ID, acc.AccessToken, acc.RefreshToken, acc.ExpiresAt, acc.TokenType, acc.Scope)
+				st, err = h.CLI.AccountStatus(acc)
 			}
 		}
+		if err != nil || st == nil {
+			return
+		}
 	}
+	h.Pool.UpdateCredits(acc.ID, st.Credits, st.Plan, st.Email)
+	acc.Credits = st.Credits
+	if st.Email != "" {
+		acc.Email = st.Email
+	}
+	if st.Plan != "" {
+		acc.Plan = st.Plan
+	}
+}
+
+func (h *Handler) refreshCreditsByID(accountID string) {
+	if accountID == "" {
+		return
+	}
+	acc, err := h.Pool.Get(accountID)
+	if err != nil || acc == nil {
+		return
+	}
+	// auth only if needed, then status
+	if changed, err := h.CLI.EnsureAuth(acc); err == nil && changed {
+		h.Pool.UpdateTokens(acc.ID, acc.AccessToken, acc.RefreshToken, acc.ExpiresAt, acc.TokenType, acc.Scope)
+	}
+	h.refreshCredits(acc)
 }
 
 func (h *Handler) runGeneration(w http.ResponseWriter, opts higgs.CreateOpts, wait bool, timeout time.Duration, kind string) {
@@ -272,6 +302,8 @@ func (h *Handler) runGeneration(w http.ResponseWriter, opts higgs.CreateOpts, wa
 		}
 	}
 	h.Pool.UpdateTokens(acc.ID, acc.AccessToken, acc.RefreshToken, acc.ExpiresAt, acc.TokenType, acc.Scope)
+	// create usually reserves/charges credits — refresh ASAP
+	h.refreshCredits(acc)
 
 	h.jobMu.Lock()
 	h.jobs[jobID] = &localJob{ID: jobID, AccountID: acc.ID, Model: opts.JobType, Status: "queued", Created: time.Now()}
@@ -296,6 +328,7 @@ func (h *Handler) runGeneration(w http.ResponseWriter, opts higgs.CreateOpts, wa
 			j.Err = err.Error()
 		}
 		h.jobMu.Unlock()
+		h.refreshCredits(acc)
 		h.writeErr(w, 502, err.Error(), "server_error", "upstream_error")
 		return
 	}
@@ -306,6 +339,8 @@ func (h *Handler) runGeneration(w http.ResponseWriter, opts higgs.CreateOpts, wa
 		j.URL = url
 	}
 	h.jobMu.Unlock()
+	// final settle balance after completion/failure
+	h.refreshCredits(acc)
 	if strings.ToLower(jr.Status) != "completed" || url == "" {
 		h.writeJSON(w, 200, JobResponse{ID: jobID, Status: jr.Status, StatusURL: "/v1/jobs/" + jobID, Model: opts.JobType})
 		return
@@ -341,6 +376,10 @@ func (h *Handler) JobGet(w http.ResponseWriter, r *http.Request) {
 	if j != nil && j.AccountID != "" {
 		if acc, err := h.Pool.Get(j.AccountID); err == nil {
 			if jr, err := h.CLI.Get(acc, id); err == nil {
+				st := strings.ToLower(jr.Status)
+				if st == "completed" || st == "failed" || st == "nsfw" || jr.ResultURL != "" {
+					go h.refreshCreditsByID(j.AccountID)
+				}
 				h.writeJSON(w, 200, JobResponse{
 					ID:     jr.ID,
 					Status: jr.Status,

@@ -205,6 +205,8 @@ func (h *Handler) videosCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.Pool.UpdateTokens(acc.ID, acc.AccessToken, acc.RefreshToken, acc.ExpiresAt, acc.TokenType, acc.Scope)
+	// charge usually happens at create — refresh credits for admin UI
+	h.refreshCredits(acc)
 	h.jobMu.Lock()
 	h.jobs[jobID] = &localJob{ID: jobID, AccountID: acc.ID, Model: spec.JobType, Status: "queued", Created: time.Now()}
 	h.jobMu.Unlock()
@@ -290,14 +292,24 @@ func (h *Handler) videosGet(w http.ResponseWriter, r *http.Request, id string) {
 		out["error"] = map[string]string{"message": "generation " + status}
 	}
 	h.jobMu.Lock()
+	prevStatus := ""
 	if j == nil {
 		j = &localJob{ID: id, Created: time.Now()}
 		h.jobs[id] = j
+	} else {
+		prevStatus = j.Status
 	}
 	j.Status = mapCanvasStatus(status)
 	j.URL = jr.ResultURL
 	j.Model = jr.JobType
+	accID := j.AccountID
 	h.jobMu.Unlock()
+
+	// refresh credits once when job reaches terminal state
+	final := mapCanvasStatus(status)
+	if accID != "" && final != prevStatus && (final == "completed" || final == "failed") {
+		go h.refreshCreditsByID(accID)
+	}
 
 	h.writeJSON(w, 200, out)
 }

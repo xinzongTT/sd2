@@ -651,6 +651,11 @@ curl -X POST https://HOST/v1/videos/generations \
       location.href = '/login.html';
     };
     $('btnRefresh').onclick = () => { refreshStatus(); refreshKeys(); refreshLogs(); refreshAccounts(); };
+    // auto refresh account credits while on accounts panel
+    setInterval(() => {
+      const panel = document.querySelector('#panel-accounts.active');
+      if (panel) { refreshAccounts(); refreshStatus(); }
+    }, 15000);
 
     function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
     function escapeAttr(s){return escapeHtml(s);}
